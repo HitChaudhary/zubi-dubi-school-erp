@@ -1,0 +1,127 @@
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+// 1. User Roles Enum
+enum Role {
+  SUPER_ADMIN
+  SCHOOL_ADMIN
+  TEACHER
+  STUDENT
+}
+
+// 2. Meeting Status Enum
+enum MeetingStatus {
+  SCHEDULED
+  ONGOING
+  ENDED
+}
+
+// 3. Schools Table (Multi-tenancy)
+model School {
+  id            Int           @id @default(autoincrement())
+  name          String
+  domain        String?       @unique
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+  
+  // Relations
+  users         User[]
+  subscriptions Subscription[]
+  meetings      Meeting[]
+  assignments   Assignment[]
+}
+
+// 4. Subscriptions Table
+model Subscription {
+  id        Int      @id @default(autoincrement())
+  schoolId  Int
+  planName  String   // e.g., "Basic", "Pro", "Enterprise"
+  status    String   // e.g., "ACTIVE", "EXPIRED", "CANCELLED"
+  startDate DateTime @default(now())
+  endDate   DateTime
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  school    School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+}
+
+// 5. Users Table
+model User {
+  id          Int      @id @default(autoincrement())
+  schoolId    Int?     // Nullable because SUPER_ADMIN might not belong to a specific school
+  name        String
+  email       String   @unique
+  password    String
+  role        Role     @default(STUDENT)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  school      School?  @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  
+  // Meetings hosted by this user (Staff/Teacher)
+  hostedMeetings Meeting[]   @relation("MeetingHost")
+  
+  // Assignments created by this user (Staff/Teacher)
+  createdAssignments Assignment[] @relation("AssignmentCreator")
+  
+  // Assignments submitted by this user (Student)
+  submissions       Submission[]
+}
+
+// 6. Meetings Table
+model Meeting {
+  id          Int           @id @default(autoincrement())
+  schoolId    Int
+  hostId      Int           // Staff/Teacher who starts the meeting
+  title       String
+  meetingLink String        // Jitsi, Zoom, or WebRTC room URL
+  status      MeetingStatus @default(SCHEDULED)
+  startTime   DateTime?
+  endTime     DateTime?
+  createdAt   DateTime      @default(now())
+
+  // Relations
+  school      School        @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  host        User          @relation("MeetingHost", fields: [hostId], references: [id], onDelete: Cascade)
+}
+
+// 7. Assignments Table (Sent by Staff)
+model Assignment {
+  id          Int      @id @default(autoincrement())
+  schoolId    Int
+  teacherId   Int
+  title       String
+  description String
+  fileUrl     String?  // Optional link to assignment PDF/doc
+  dueDate     DateTime?
+  createdAt   DateTime @default(now())
+
+  // Relations
+  school      School   @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacher     User     @relation("AssignmentCreator", fields: [teacherId], references: [id], onDelete: Cascade)
+  submissions Submission[]
+}
+
+// 8. Student Submissions Table
+model Submission {
+  id           Int        @id @default(autoincrement())
+  assignmentId Int
+  studentId    Int
+  fileUrl      String     // Student's completed work file link
+  submittedAt  DateTime   @default(now())
+  grade        String?    // Optional feedback/grade from teacher
+
+  // Relations
+  assignment   Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student      User       @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId]) // Prevents a student from submitting multiple times for one assignment
+}

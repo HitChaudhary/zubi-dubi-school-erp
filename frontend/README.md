@@ -1,16 +1,65 @@
-# React + Vite
+# Zubi Dubi — Smart School ERP
 
-This template provides a minimal setup to get React working in Vite with HMR and some ESLint rules.
+React + Vite + Tailwind CSS project.
 
-Currently, two official plugins are available:
+## 🚀 Get Started
 
-- [@vitejs/plugin-react](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react) uses [Oxc](https://oxc.rs)
-- [@vitejs/plugin-react-swc](https://github.com/vitejs/vite-plugin-react/blob/main/packages/plugin-react-swc) uses [SWC](https://swc.rs/)
+```bash
+# 1. Install dependencies
+npm install
 
-## React Compiler
+# 2. Start dev server
+npm run dev
+```
 
-The React Compiler is not enabled on this template because of its impact on dev & build performances. To add it, see [this documentation](https://react.dev/learn/react-compiler/installation).
+Then open → http://localhost:5173
 
-## Expanding the ESLint configuration
+## 📦 Build for Production
 
-If you are developing a production application, we recommend using TypeScript with type-aware lint rules enabled. Check out the [TS template](https://github.com/vitejs/vite/tree/main/packages/create-vite/template-react-ts) for information on how to integrate TypeScript and [`typescript-eslint`](https://typescript-eslint.io) in your project.
+```bash
+npm run build
+npm run preview
+```
+
+## 🗂 Project Structure
+
+```
+src/
+├── main.jsx                        # Vite entry point
+├── App.jsx                         # Router setup
+├── styles/index.css                # Global styles + Tailwind
+├── components/
+│   ├── common/
+│   │   ├── Navbar.jsx
+│   │   ├── Footer.jsx
+│   │   └── SectionBadge.jsx
+│   ├── home/
+│   │   ├── HeroSection.jsx
+│   │   ├── FeaturesSection.jsx
+│   │   ├── UserRolesSection.jsx
+│   │   ├── StatsSection.jsx
+│   │   ├── PricingSection.jsx
+│   │   └── CTASection.jsx
+│   ├── about/
+│   │   ├── MissionSection.jsx
+│   │   ├── TeamSection.jsx
+│   │   └── AboutStatsSection.jsx
+│   ├── contact/
+│   │   ├── ContactInfoCards.jsx
+│   │   └── ContactForm.jsx
+│   └── login/
+│       ├── LoginLeftPanel.jsx
+│       └── RoleSelector.jsx
+└── pages/
+    ├── home/HomePage.jsx
+    ├── about/AboutPage.jsx
+    ├── contact/ContactPage.jsx
+    └── login/LoginPage.jsx
+```
+
+## 🛠 Tech Stack
+
+- React 18
+- Vite 5
+- Tailwind CSS 3
+- React Router DOM 6
