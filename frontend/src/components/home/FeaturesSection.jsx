@@ -1,4 +1,5 @@
 import SectionBadge from '../common/SectionBadge';
+import SpotlightCard from '../effects/SpotlightCard';
 
 const FEATURES = [
   {
@@ -60,7 +61,7 @@ export default function FeaturesSection() {
         {/* Cards */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
           {FEATURES.map(({ icon, iconBg, iconColor, title, desc, items }) => (
-            <div key={title} className="card p-6">
+            <SpotlightCard key={title} className="p-6">
               <div
                 className="feature-icon-wrap mb-4"
                 style={{ background: iconBg }}
@@ -77,7 +78,7 @@ export default function FeaturesSection() {
                   </li>
                 ))}
               </ul>
-            </div>
+            </SpotlightCard>
           ))}
         </div>
       </div>

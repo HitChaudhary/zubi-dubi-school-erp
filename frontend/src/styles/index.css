@@ -120,6 +120,23 @@ body {
     filter: blur(80px);
     pointer-events: none;
     position: absolute;
+    animation: blobDrift 12s ease-in-out infinite;
+  }
+}
+
+/* ── Ambient blob motion ──────────────────── */
+@keyframes blobDrift {
+  0%, 100% { transform: translate(0, 0) scale(1); }
+  50%      { transform: translate(24px, -18px) scale(1.06); }
+}
+
+/* ── Respect reduced-motion preference ────── */
+@media (prefers-reduced-motion: reduce) {
+  .blob { animation: none; }
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
   }
 }
 

@@ -1,14 +1,16 @@
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
 import Navbar from './components/common/Navbar';
+import ProtectedRoute from './components/common/ProtectedRoute';
 import HomePage from './pages/home/HomePage';
 import AboutPage from './pages/about/AboutPage';
 import ContactPage from './pages/contact/ContactPage';
 import LoginPage from './pages/login/LoginPage';
+import RegisterPage from './pages/register/RegisterPage';
+import RegistrationStatusPage from './pages/register/RegistrationStatusPage';
 import AdminDashboard from './pages/admin/AdminDashboard';
-
-// Mock placeholders for other roles for now
-const StaffDashboard = () => <div style={{ padding: 40 }}><h2>Staff Meeting Dashboard</h2></div>;
-const StudentDashboard = () => <div style={{ padding: 40 }}><h2>Student Classroom Portal</h2></div>;
+import TeacherDashboard from './pages/teacher/TeacherDashboard';
+import StudentDashboard from './pages/student/StudentDashboard';
+import SuperAdminDashboard from './pages/superadmin/SuperAdminDashboard';
 
 export default function App() {
   return (
@@ -16,11 +18,42 @@ export default function App() {
       <Routes>
         {/* --- NO NAVBAR PAGES --- */}
         <Route path="/login" element={<LoginPage />} />
-        
-        {/* Dashboards (No main public Navbar) */}
-        <Route path="/admin/dashboard" element={<AdminDashboard />} />
-        <Route path="/staff/dashboard" element={<StaffDashboard />} />
-        <Route path="/student/dashboard" element={<StudentDashboard />} />
+        <Route path="/register" element={<RegisterPage />} />
+        <Route path="/register/status" element={<RegistrationStatusPage />} />
+
+        {/* Dashboards — each gated to its own role, no public Navbar */}
+        <Route
+          path="/superadmin/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['SUPER_ADMIN']}>
+              <SuperAdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['SCHOOL_ADMIN']}>
+              <AdminDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/teacher/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['TEACHER']}>
+              <TeacherDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/student/dashboard"
+          element={
+            <ProtectedRoute allowedRoles={['STUDENT']}>
+              <StudentDashboard />
+            </ProtectedRoute>
+          }
+        />
 
         {/* --- PUBLIC SITE WITH NAVBAR --- */}
         <Route

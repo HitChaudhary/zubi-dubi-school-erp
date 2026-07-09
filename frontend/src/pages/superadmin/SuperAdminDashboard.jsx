@@ -8,6 +8,7 @@ import { api } from '../../utils/api';
 
 const NAV_ITEMS = [
   { id: 'overview', icon: 'dashboard', label: 'Overview' },
+  { id: 'requests', icon: 'how_to_reg', label: 'Requests' },
   { id: 'schools', icon: 'hub', label: 'Schools' },
   { id: 'subscriptions', icon: 'credit_card', label: 'Subscriptions' },
   { id: 'users', icon: 'group', label: 'All Users' },
@@ -19,6 +20,11 @@ export default function SuperAdminDashboard() {
   const [schools, setSchools] = useState([]);
   const [subscriptions, setSubscriptions] = useState([]);
   const [users, setUsers] = useState([]);
+  const [requests, setRequests] = useState([]);
+  const [requestFilter, setRequestFilter] = useState('PENDING');
+  const [rejectingRequest, setRejectingRequest] = useState(null); // request object being rejected
+  const [rejectReason, setRejectReason] = useState('');
+  const [actioningId, setActioningId] = useState(null); // request currently being approved/rejected
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
@@ -31,7 +37,7 @@ export default function SuperAdminDashboard() {
 
   const flash = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000); };
 
-  const load = useCallback(async (tab) => {
+  const load = useCallback(async (tab, filter) => {
     setLoading(true);
     setError('');
     try {
@@ -39,6 +45,7 @@ export default function SuperAdminDashboard() {
       if (tab === 'schools') setSchools((await api.get('/superadmin/schools')).schools);
       if (tab === 'subscriptions') setSubscriptions((await api.get('/superadmin/subscriptions')).subscriptions);
       if (tab === 'users') setUsers((await api.get('/superadmin/users')).users);
+      if (tab === 'requests') setRequests((await api.get(`/superadmin/registration-requests?status=${filter}`)).requests);
     } catch (err) {
       setError(err.message);
     } finally {
@@ -46,7 +53,7 @@ export default function SuperAdminDashboard() {
     }
   }, []);
 
-  useEffect(() => { load(activeTab); }, [activeTab, load]);
+  useEffect(() => { load(activeTab, requestFilter); }, [activeTab, requestFilter, load]);
 
   const handleCreateSchool = async (e) => {
     e.preventDefault();
@@ -104,6 +111,38 @@ export default function SuperAdminDashboard() {
     }
   };
 
+  const handleApproveRequest = async (req) => {
+    if (!confirm(`Approve "${req.schoolName}"? This creates the school and signs in ${req.adminEmail} as its admin.`)) return;
+    setActioningId(req.id);
+    setError('');
+    try {
+      await api.put(`/superadmin/registration-requests/${req.id}/approve`, {});
+      flash(`${req.schoolName} approved.`);
+      load('requests', requestFilter);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setActioningId(null);
+    }
+  };
+
+  const handleRejectRequest = async (e) => {
+    e.preventDefault();
+    setActioningId(rejectingRequest.id);
+    setError('');
+    try {
+      await api.put(`/superadmin/registration-requests/${rejectingRequest.id}/reject`, { reason: rejectReason });
+      flash(`${rejectingRequest.schoolName} rejected.`);
+      setRejectingRequest(null);
+      setRejectReason('');
+      load('requests', requestFilter);
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setActioningId(null);
+    }
+  };
+
   return (
     <DashboardShell brandLabel="Super Admin" navItems={NAV_ITEMS} activeTab={activeTab} onTabChange={setActiveTab}>
       <ErrorBanner message={error} />
@@ -119,11 +158,24 @@ export default function SuperAdminDashboard() {
             <>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 20, marginBottom: 24 }}>
                 <StatCard icon="hub" color="#3525cd" label="Total Schools" value={stats.totalSchools} />
+                <StatCard icon="how_to_reg" color="#ff9800" label="Pending Requests" value={stats.pendingRequests} />
                 <StatCard icon="credit_card" color="#25d366" label="Active Subscriptions" value={stats.activeSubscriptions} />
                 <StatCard icon="group" color="#39b8fd" label="Total Users" value={stats.totalUsers} />
                 <StatCard icon="video_call" color="#7b61ff" label="Total Meetings" value={stats.totalMeetings} />
                 <StatCard icon="assignment" color="#ff9800" label="Total Assignments" value={stats.totalAssignments} />
               </div>
+              {stats.pendingRequests > 0 && (
+                <div
+                  onClick={() => setActiveTab('requests')}
+                  style={{
+                    background: '#fff3cd', borderRadius: 10, padding: '14px 18px', marginBottom: 24,
+                    display: 'flex', alignItems: 'center', gap: 10, cursor: 'pointer', fontSize: 13.5, color: '#7a5b00', fontWeight: 600,
+                  }}
+                >
+                  <span className="material-symbols-outlined" style={{ fontSize: 18 }}>notifications_active</span>
+                  {stats.pendingRequests} school{stats.pendingRequests > 1 ? 's' : ''} waiting for approval — click to review.
+                </div>
+              )}
               <Card title="Users by Role">
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: 16 }}>
                   {Object.entries(stats.roleCounts || {}).map(([role, count]) => (
@@ -136,6 +188,89 @@ export default function SuperAdminDashboard() {
               </Card>
             </>
           )}
+        </>
+      )}
+
+      {activeTab === 'requests' && (
+        <>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end', flexWrap: 'wrap', gap: 16, marginBottom: 24 }}>
+            <div>
+              <h1 style={{ fontSize: 26, color: '#0b1c30', fontWeight: 800, margin: '0 0 10px 0' }}>Registration Requests</h1>
+              <div style={{ display: 'flex', gap: 8 }}>
+                {['PENDING', 'APPROVED', 'REJECTED'].map((s) => (
+                  <button
+                    key={s}
+                    onClick={() => setRequestFilter(s)}
+                    style={{
+                      padding: '7px 16px', borderRadius: 999, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700,
+                      background: requestFilter === s ? '#3525cd' : '#e5eeff',
+                      color: requestFilter === s ? '#fff' : '#464555',
+                    }}
+                  >
+                    {s.charAt(0) + s.slice(1).toLowerCase()}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {loading ? <Spinner /> : requests.length === 0 ? (
+            <EmptyState icon="how_to_reg" message={`No ${requestFilter.toLowerCase()} requests.`} />
+          ) : (
+            <div style={{ display: 'grid', gap: 12 }}>
+              {requests.map((r) => (
+                <Card key={r.id}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: 12 }}>
+                    <div>
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }}>
+                        <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700, color: '#0b1c30' }}>{r.schoolName}</h3>
+                        <Badge tone={r.status === 'PENDING' ? 'warning' : r.status === 'APPROVED' ? 'success' : 'danger'}>{r.status}</Badge>
+                      </div>
+                      <p style={{ margin: '0 0 2px 0', fontSize: 13, color: '#464555' }}>{r.adminName} · {r.adminEmail}</p>
+                      <p style={{ margin: 0, fontSize: 12, color: '#777587' }}>
+                        {r.domain ? `${r.domain} · ` : ''}Submitted {new Date(r.createdAt).toLocaleDateString()}
+                      </p>
+                      {r.status !== 'PENDING' && (
+                        <p style={{ margin: '6px 0 0 0', fontSize: 12, color: '#777587' }}>
+                          {r.status === 'REJECTED' && r.rejectionReason ? `Reason: ${r.rejectionReason} · ` : ''}
+                          Reviewed by {r.reviewedByName || 'a super admin'} on {r.reviewedAt ? new Date(r.reviewedAt).toLocaleDateString() : '—'}
+                        </p>
+                      )}
+                    </div>
+                    {r.status === 'PENDING' && (
+                      <div style={{ display: 'flex', gap: 8, flexShrink: 0 }}>
+                        <button
+                          onClick={() => handleApproveRequest(r)}
+                          disabled={actioningId === r.id}
+                          style={{ ...statusActionBtn, background: '#e1f5ee', color: '#005338' }}
+                        >
+                          Approve
+                        </button>
+                        <button
+                          onClick={() => { setRejectingRequest(r); setRejectReason(''); }}
+                          disabled={actioningId === r.id}
+                          style={{ ...statusActionBtn, background: '#ffdad6', color: '#93000a' }}
+                        >
+                          Reject
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </Card>
+              ))}
+            </div>
+          )}
+
+          <Modal open={Boolean(rejectingRequest)} title={`Reject "${rejectingRequest?.schoolName || ''}"`} onClose={() => setRejectingRequest(null)}>
+            <form onSubmit={handleRejectRequest}>
+              <FormField label="Reason (optional, shown to the applicant)">
+                <textarea style={{ ...inputStyle, minHeight: 80 }} value={rejectReason} onChange={(e) => setRejectReason(e.target.value)} placeholder="e.g. Could not verify school details" />
+              </FormField>
+              <PrimaryButton type="submit" disabled={actioningId === rejectingRequest?.id} style={{ width: '100%', justifyContent: 'center', marginTop: 8, background: '#ba1a1a' }}>
+                {actioningId === rejectingRequest?.id ? 'Rejecting…' : 'Confirm Rejection'}
+              </PrimaryButton>
+            </form>
+          </Modal>
         </>
       )}
 
@@ -335,3 +470,7 @@ export default function SuperAdminDashboard() {
     </DashboardShell>
   );
 }
+
+const statusActionBtn = {
+  padding: '7px 16px', borderRadius: 8, border: 'none', cursor: 'pointer', fontSize: 12.5, fontWeight: 700,
+};

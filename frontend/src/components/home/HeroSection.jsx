@@ -1,5 +1,6 @@
 import { useNavigate } from 'react-router-dom';
 import SectionBadge from '../common/SectionBadge';
+import SplitText from '../effects/SplitText';
 
 const BARS = [
   { label: 'Active Students',        value: '2,840', pct: 84, color: '#c3c0ff' },
@@ -23,7 +24,7 @@ export default function HeroSection() {
     >
       {/* Blobs */}
       <div className="blob" style={{ top: '-10%', right: '-5%',  width: 600, height: 600, background: 'rgba(53,37,205,0.2)' }} />
-      <div className="blob" style={{ bottom: '-10%', left: '-5%', width: 500, height: 500, background: 'rgba(57,184,253,0.15)' }} />
+      <div className="blob" style={{ bottom: '-10%', left: '-5%', width: 500, height: 500, background: 'rgba(57,184,253,0.15)', animationDelay: '-4s', animationDuration: '15s' }} />
 
       <div className="max-w-7xl mx-auto px-6 py-20 w-full">
         <div className="flex flex-col lg:flex-row items-center gap-16">
@@ -38,8 +39,18 @@ export default function HeroSection() {
               className="font-headline font-extrabold leading-tight text-white mb-6"
               style={{ fontSize: 'clamp(2rem,5vw,3.5rem)' }}
             >
-              Manage Your Entire<br />
-              <span style={{ background: 'linear-gradient(135deg,#c3c0ff,#89ceff)', WebkitBackgroundClip: 'text', WebkitTextFillColor: 'transparent' }}>
+              <SplitText text="Manage Your Entire" tag="span" />
+              <br />
+              <span
+                className="animate-fade-up"
+                style={{
+                  display: 'inline-block',
+                  animationDelay: '0.9s',
+                  background: 'linear-gradient(135deg,#c3c0ff,#89ceff)',
+                  WebkitBackgroundClip: 'text',
+                  WebkitTextFillColor: 'transparent',
+                }}
+              >
                 School with Zubi Dubi
               </span>
             </h1>

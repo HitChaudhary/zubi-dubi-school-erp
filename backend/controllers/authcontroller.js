@@ -1,8 +1,7 @@
-import { PrismaClient } from '@prisma/client';
 import bcrypt from 'bcrypt';
 import jwt from 'jsonwebtoken';
+import prisma from '../config/prisma.js';
 
-const prisma = new PrismaClient();
 const JWT_SECRET = process.env.JWT_SECRET || 'your_fallback_super_secret_key';
 
 export const login = async (req, res) => {
@@ -17,6 +16,7 @@ export const login = async (req, res) => {
     // 2. Find user in database
     const user = await prisma.user.findUnique({
       where: { email },
+      include: { school: { select: { id: true, name: true } } },
     });
 
     if (!user) {
@@ -31,10 +31,13 @@ export const login = async (req, res) => {
 
     // 4. Generate JWT with role and school context
     const token = jwt.sign(
-      { 
-        userId: user.id, 
-        role: user.role, 
-        schoolId: user.schoolId 
+      {
+        userId: user.id,
+        role: user.role,
+        schoolId: user.schoolId,
+        rollNo: user.rollNo,
+        standard: user.standard,
+        school: user.school
       },
       JWT_SECRET,
       { expiresIn: '1d' }
@@ -49,12 +52,43 @@ export const login = async (req, res) => {
         name: user.name,
         email: user.email,
         role: user.role,
-        schoolId: user.schoolId
+        schoolId: user.schoolId,
+        rollNo: user.rollNo,
+        standard: user.standard,
+        school: user.school
       }
     });
 
   } catch (error) {
     console.error('Login error:', error);
+    return res.status(500).json({ message: 'An internal server error occurred.' });
+  }
+};
+
+// GET /api/auth/me — used by the frontend to re-validate a stored token / refresh user info
+export const me = async (req, res) => {
+  try {
+    const user = await prisma.user.findUnique({
+      where: { id: req.user.userId },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        schoolId: true,
+        rollNo: true,
+        standard: true,
+        school: { select: { id: true, name: true } },
+      },
+    });
+
+    if (!user) {
+      return res.status(404).json({ message: 'User not found.' });
+    }
+
+    return res.status(200).json({ user });
+  } catch (error) {
+    console.error('Me error:', error);
     return res.status(500).json({ message: 'An internal server error occurred.' });
   }
 };

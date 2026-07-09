@@ -12,6 +12,9 @@ import {
   updateSubscription,
   deleteSubscription,
   getUsers,
+  getRegistrationRequests,
+  approveRequest,
+  rejectRequest,
 } from '../controllers/superadmin.controller.js';
 
 const router = Router();
@@ -32,5 +35,9 @@ router.put('/subscriptions/:id', updateSubscription);
 router.delete('/subscriptions/:id', deleteSubscription);
 
 router.get('/users', getUsers);
+
+router.get('/registration-requests', getRegistrationRequests);
+router.put('/registration-requests/:id/approve', approveRequest);
+router.put('/registration-requests/:id/reject', rejectRequest);
 
 export default router;

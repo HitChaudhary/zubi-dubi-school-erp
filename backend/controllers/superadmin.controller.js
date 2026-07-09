@@ -1,10 +1,11 @@
 import bcrypt from 'bcrypt';
 import prisma from '../config/prisma.js';
+import { notifyApplicantApproved, notifyApplicantRejected } from '../utils/mailer.js';
 
 // GET /api/superadmin/stats
 export const getStats = async (req, res) => {
   try {
-    const [totalSchools, totalUsers, activeSubscriptions, totalMeetings, totalAssignments, usersByRole] =
+    const [totalSchools, totalUsers, activeSubscriptions, totalMeetings, totalAssignments, usersByRole, pendingRequests] =
       await Promise.all([
         prisma.school.count(),
         prisma.user.count(),
@@ -12,6 +13,7 @@ export const getStats = async (req, res) => {
         prisma.meeting.count(),
         prisma.assignment.count(),
         prisma.user.groupBy({ by: ['role'], _count: { role: true } }),
+        prisma.registrationRequest.count({ where: { status: 'PENDING' } }),
       ]);
 
     const roleCounts = usersByRole.reduce((acc, row) => {
@@ -26,6 +28,7 @@ export const getStats = async (req, res) => {
       totalMeetings,
       totalAssignments,
       roleCounts,
+      pendingRequests,
     });
   } catch (error) {
     console.error('getStats error:', error);
@@ -268,5 +271,109 @@ export const getUsers = async (req, res) => {
   } catch (error) {
     console.error('getUsers error:', error);
     return res.status(500).json({ message: 'Failed to load users.' });
+  }
+};
+
+// GET /api/superadmin/registration-requests  (optional ?status=PENDING|APPROVED|REJECTED)
+export const getRegistrationRequests = async (req, res) => {
+  try {
+    const { status } = req.query;
+    const requests = await prisma.registrationRequest.findMany({
+      where: status ? { status } : undefined,
+      orderBy: { createdAt: 'desc' },
+      select: {
+        id: true, schoolName: true, domain: true, adminName: true, adminEmail: true,
+        status: true, rejectionReason: true, reviewedByName: true, reviewedAt: true, createdAt: true,
+      },
+    });
+    return res.json({ requests });
+  } catch (error) {
+    console.error('getRegistrationRequests error:', error);
+    return res.status(500).json({ message: 'Failed to load registration requests.' });
+  }
+};
+
+// PUT /api/superadmin/registration-requests/:id/approve
+// Creates the real School + SCHOOL_ADMIN user (reusing the password the applicant set) in one transaction.
+export const approveRequest = async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+
+    const request = await prisma.registrationRequest.findUnique({ where: { id } });
+    if (!request) return res.status(404).json({ message: 'Request not found.' });
+    if (request.status !== 'PENDING') {
+      return res.status(409).json({ message: `This request was already ${request.status.toLowerCase()}.` });
+    }
+
+    // Someone may have registered this email through another path since the request was filed.
+    const existingUser = await prisma.user.findUnique({ where: { email: request.adminEmail } });
+    if (existingUser) {
+      return res.status(409).json({ message: 'A user with this email already exists; cannot approve.' });
+    }
+
+    const result = await prisma.$transaction(async (tx) => {
+      const school = await tx.school.create({
+        data: { name: request.schoolName, domain: request.domain },
+      });
+      const admin = await tx.user.create({
+        data: {
+          name: request.adminName,
+          email: request.adminEmail,
+          password: request.password, // already hashed at submission time
+          role: 'SCHOOL_ADMIN',
+          schoolId: school.id,
+        },
+      });
+      const updated = await tx.registrationRequest.update({
+        where: { id },
+        data: { status: 'APPROVED', reviewedAt: new Date(), reviewedByName: req.user.name || null },
+      });
+      return { school, admin, updated };
+    });
+
+    notifyApplicantApproved(request).catch(() => {});
+
+    return res.json({
+      message: 'Request approved. School and admin account created.',
+      school: result.school,
+      admin: { id: result.admin.id, name: result.admin.name, email: result.admin.email },
+    });
+  } catch (error) {
+    if (error.code === 'P2002') {
+      return res.status(409).json({ message: 'That domain or email is already in use.' });
+    }
+    console.error('approveRequest error:', error);
+    return res.status(500).json({ message: 'Failed to approve request.' });
+  }
+};
+
+// PUT /api/superadmin/registration-requests/:id/reject
+export const rejectRequest = async (req, res) => {
+  try {
+    const id = Number(req.params.id);
+    const { reason } = req.body;
+
+    const request = await prisma.registrationRequest.findUnique({ where: { id } });
+    if (!request) return res.status(404).json({ message: 'Request not found.' });
+    if (request.status !== 'PENDING') {
+      return res.status(409).json({ message: `This request was already ${request.status.toLowerCase()}.` });
+    }
+
+    const updated = await prisma.registrationRequest.update({
+      where: { id },
+      data: {
+        status: 'REJECTED',
+        rejectionReason: reason || null,
+        reviewedAt: new Date(),
+        reviewedByName: req.user.name || null,
+      },
+    });
+
+    notifyApplicantRejected(updated).catch(() => {});
+
+    return res.json({ message: 'Request rejected.', request: updated });
+  } catch (error) {
+    console.error('rejectRequest error:', error);
+    return res.status(500).json({ message: 'Failed to reject request.' });
   }
 };

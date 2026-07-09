@@ -1,8 +1,10 @@
+import CountUp from '../effects/CountUp';
+
 const STATS = [
-  { value: '100+', label: 'Schools'           },
-  { value: '10K+', label: 'Students'          },
-  { value: '500+', label: 'Teachers'          },
-  { value: '50K+', label: 'Classes Conducted' },
+  { value: 100,    suffix: '+', label: 'Schools'           },
+  { value: 10000,  suffix: '+', label: 'Students'          },
+  { value: 500,    suffix: '+', label: 'Teachers'          },
+  { value: 50000,  suffix: '+', label: 'Classes Conducted' },
 ];
 
 export default function StatsSection() {
@@ -33,12 +35,11 @@ export default function StatsSection() {
         </div>
 
         <div className="grid grid-cols-2 md:grid-cols-4 gap-5">
-          {STATS.map(({ value, label }) => (
+          {STATS.map(({ value, suffix, label }, i) => (
             <div key={label} className="stat-card">
-              <div
-                className="font-headline font-extrabold text-4xl text-white mb-1"
-              >
-                {value}
+              <div className="font-headline font-extrabold text-4xl text-white mb-1">
+                <CountUp to={value} duration={2} delay={i * 0.15} />
+                {suffix}
               </div>
               <div style={{ color: 'rgba(255,255,255,0.6)', fontSize: '0.9rem' }}>{label}</div>
             </div>

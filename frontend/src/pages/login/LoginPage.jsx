@@ -2,6 +2,7 @@ import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import LoginLeftPanel from '../../components/login/LoginLeftPanel';
 import RoleSelector   from '../../components/login/RoleSelector';
+import { ROLE_HOME } from '../../utils/auth';
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -42,23 +43,17 @@ export default function LoginPage() {
         throw new Error(data.message || 'Invalid login details.');
       }
 
-      // 3. Save the JWT authentication state 
+      // 3. Save the JWT authentication state
       localStorage.setItem('token', data.token);
       localStorage.setItem('user', JSON.stringify(data.user));
 
       setLoading(false);
       setSuccess(true);
 
-      // 4. Redirect safely depending on user permission levels
+      // 4. Redirect to the dashboard that matches the account's real role
+      // (the selector above is just a visual shortcut — the backend role decides where you land)
       setTimeout(() => {
-        const userRole = data.user.role; // 'SUPER_ADMIN', 'SCHOOL_ADMIN', 'TEACHER', 'STUDENT'
-        if (userRole === 'STUDENT') {
-          navigate('/student/dashboard');
-        } else if (userRole === 'TEACHER') {
-          navigate('/staff/dashboard');
-        } else {
-          navigate('/admin/dashboard');
-        }
+        navigate(ROLE_HOME[data.user.role] || '/login');
       }, 1000);
 
     } catch (err) {
@@ -179,10 +174,19 @@ export default function LoginPage() {
           </button>
 
           <div style={{ textAlign: 'center' }}>
-            <p style={{ fontSize: 12, color: '#777587' }}>Don't have an account? Contact your school admin or</p>
-            <Link to="/contact" style={{ fontSize: 12, color: '#3525cd', fontWeight: 700, textDecoration: 'none' }}>
-              Request a Free Trial →
-            </Link>
+            <p style={{ fontSize: 12, color: '#777587' }}>Don't have an account?</p>
+            <p style={{ fontSize: 12, margin: '4px 0 0 0' }}>
+              <Link to="/register" style={{ color: '#3525cd', fontWeight: 700, textDecoration: 'none' }}>
+                Register your school →
+              </Link>
+              <span style={{ color: '#c7c4d8', margin: '0 8px' }}>·</span>
+              <Link to="/contact" style={{ color: '#777587', fontWeight: 600, textDecoration: 'none' }}>
+                Contact Sales
+              </Link>
+            </p>
+            <p style={{ fontSize: 11.5, color: '#999', marginTop: 6 }}>
+              Teachers & students: ask your school admin to create your account.
+            </p>
           </div>
 
           {/* Divider */}
