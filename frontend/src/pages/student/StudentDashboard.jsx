@@ -6,6 +6,7 @@ import {
   Modal, PrimaryButton, FormField, inputStyle,
 } from '../../components/dashboard/Widgets';
 import { api } from '../../utils/api';
+import { safeHref } from '../../utils/url';
 import { getCurrentUser } from '../../utils/auth';
 
 const NAV_ITEMS = [
@@ -140,7 +141,7 @@ export default function StudentDashboard() {
                         {m.startTime && <p style={{ margin: '3px 0 0', fontSize: 12, color: '#777587' }}>{new Date(m.startTime).toLocaleString()}</p>}
                       </div>
                       {m.status !== 'ENDED' ? (
-                        <a href={m.meetingLink} target="_blank" rel="noreferrer"
+                        <a href={safeHref(m.meetingLink)} target="_blank" rel="noreferrer"
                           style={{ textDecoration: 'none', padding: '8px 18px', borderRadius: 999, fontSize: 12.5, fontWeight: 700, background: '#3525cd', color: '#fff' }}>
                           Join Class
                         </a>

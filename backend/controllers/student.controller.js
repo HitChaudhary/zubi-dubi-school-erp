@@ -1,4 +1,5 @@
 import prisma from '../config/prisma.js';
+import { normalizeUrl } from '../utils/url.js';
 
 // GET /api/student/stats
 export const getStats = async (req, res) => {
@@ -117,7 +118,7 @@ export const submitAssignment = async (req, res) => {
     if (existing) return res.status(409).json({ message: 'You have already submitted this assignment.' });
 
     const submission = await prisma.submission.create({
-      data: { assignmentId, studentId, fileUrl },
+      data: { assignmentId, studentId, fileUrl: normalizeUrl(fileUrl) },
     });
 
     return res.status(201).json({ message: 'Submitted successfully.', submission });

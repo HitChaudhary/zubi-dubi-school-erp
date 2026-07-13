@@ -1,5 +1,6 @@
 import bcrypt from 'bcrypt';
 import prisma from '../config/prisma.js';
+import { normalizeUrl } from '../utils/url.js';
 
 // GET /api/teacher/stats
 export const getStats = async (req, res) => {
@@ -50,7 +51,7 @@ export const createMeeting = async (req, res) => {
     const meeting = await prisma.meeting.create({
       data: {
         title,
-        meetingLink,
+        meetingLink: normalizeUrl(meetingLink),
         startTime: startTime ? new Date(startTime) : null,
         standard,               // <-- which class
         schoolId: req.user.schoolId,
@@ -76,7 +77,7 @@ export const updateMeeting = async (req, res) => {
 
     const data = {
       ...(title && { title }),
-      ...(meetingLink && { meetingLink }),
+      ...(meetingLink && { meetingLink: normalizeUrl(meetingLink) }),
       ...(standard && { standard }),
     };
     if (status) {
@@ -134,7 +135,7 @@ export const createAssignment = async (req, res) => {
       data: {
         title,
         description,
-        fileUrl: fileUrl || null,
+        fileUrl: fileUrl ? normalizeUrl(fileUrl) : null,
         dueDate: dueDate ? new Date(dueDate) : null,
         schoolId: req.user.schoolId,
         teacherId: req.user.userId,

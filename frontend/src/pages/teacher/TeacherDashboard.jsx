@@ -5,6 +5,7 @@ import {
   Modal, PrimaryButton, FormField, inputStyle,
 } from '../../components/dashboard/Widgets';
 import { api } from '../../utils/api';
+import { safeHref } from '../../utils/url';
 
 const NAV_ITEMS = [
   { id: 'overview',    icon: 'dashboard',    label: 'Overview'       },
@@ -293,7 +294,7 @@ export default function TeacherDashboard() {
                           <Badge tone="primary">Class: {m.standard}</Badge>
                         )}
                       </div>
-                      <a href={m.meetingLink} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: '#3525cd', fontWeight: 600 }}>{m.meetingLink}</a>
+                      <a href={safeHref(m.meetingLink)} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: '#3525cd', fontWeight: 600 }}>{m.meetingLink}</a>
                       {m.startTime && <p style={{ margin: '4px 0 0', fontSize: 12, color: '#777587' }}>{new Date(m.startTime).toLocaleString()}</p>}
                     </div>
                     <div style={{ display: 'flex', gap: 8 }}>
@@ -400,7 +401,7 @@ export default function TeacherDashboard() {
                       </p>
                       <span style={{ fontSize: 11.5, color: '#777587' }}>{new Date(s.submittedAt).toLocaleDateString()}</span>
                     </div>
-                    <a href={s.fileUrl} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: '#3525cd', fontWeight: 600, display: 'block', marginBottom: 10 }}>View submitted file →</a>
+                    <a href={safeHref(s.fileUrl)} target="_blank" rel="noreferrer" style={{ fontSize: 12.5, color: '#3525cd', fontWeight: 600, display: 'block', marginBottom: 10 }}>View submitted file →</a>
                     <div style={{ display: 'flex', gap: 8 }}>
                       <input style={{ ...inputStyle, flex: 1 }} placeholder="Grade / feedback" value={gradeDrafts[s.id] || ''}
                         onChange={(e) => setGradeDrafts({ ...gradeDrafts, [s.id]: e.target.value })} />
