@@ -7,6 +7,7 @@ import {
   getAssignments, createAssignment, deleteAssignment, getSubmissions, gradeSubmission,
   getSchool, updateSchool,
   getAttendanceOverview,
+  getTeacherAttendance,
 } from '../controllers/admin.controller.js';
 
 const router = Router();
@@ -34,5 +35,6 @@ router.put('/submissions/:id/grade',        gradeSubmission);
 
 // Attendance oversight
 router.get('/attendance', getAttendanceOverview);  // ?standard=10A&date=2024-06-26
+router.get('/teacher-attendance', getTeacherAttendance);  // ?date=2024-06-26
 
 export default router;

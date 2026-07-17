@@ -47,6 +47,7 @@ export default function TeacherDashboard() {
   const [attSaving,   setAttSaving]     = useState(false);
   const [attReport,   setAttReport]     = useState([]);
   const [showReport,  setShowReport]    = useState(false);
+  const [attHistory,  setAttHistory]    = useState([]); // snapshots of attRecords, for Undo
 
   // Students state
   const [students,        setStudents]        = useState([]);
@@ -55,6 +56,10 @@ export default function TeacherDashboard() {
   const [studentForm, setStudentForm] = useState({ name: '', email: '', password: '', rollNo: '', standard: '' });
 
   const [submitting, setSubmitting] = useState(false);
+
+  // Self attendance (teacher's own daily check-in)
+  const [selfAtt, setSelfAtt] = useState(null); // { checkedIn, checkedInAt }
+  const [selfAttBusy, setSelfAttBusy] = useState(false);
 
   const flash = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000); };
 
@@ -74,6 +79,23 @@ export default function TeacherDashboard() {
   }, []);
 
   useEffect(() => { load(activeTab); }, [activeTab, load]);
+
+  useEffect(() => {
+    api.get('/teacher/self-attendance/today').then(setSelfAtt).catch(() => {});
+  }, []);
+
+  const handleSelfCheckIn = async () => {
+    setSelfAttBusy(true);
+    try {
+      const res = await api.post('/teacher/self-attendance', {});
+      setSelfAtt({ checkedIn: true, checkedInAt: res.checkedInAt });
+      flash('Attendance marked for today.');
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setSelfAttBusy(false);
+    }
+  };
 
   // ---- Meetings ----
   const handleCreateMeeting = async (e) => {
@@ -189,25 +211,63 @@ export default function TeacherDashboard() {
     setAttLoading(true);
     setError('');
     try {
-      // Load students of this standard
+      // Load students of this standard, sorted by roll no — this order is the "stack".
       const { students } = await api.get(`/teacher/attendance/students?standard=${encodeURIComponent(attStandard)}`);
-      setAttStudents(students);
+      const sorted = [...students].sort((a, b) =>
+        (Number(a.rollNo) || 0) - (Number(b.rollNo) || 0) || (a.rollNo || '').localeCompare(b.rollNo || '')
+      );
+      setAttStudents(sorted);
 
-      // Load existing records for this date (if any)
+      // Load existing records for this date (if any) — only these come pre-marked;
+      // everyone else starts unmarked and works through the stack one at a time.
       const { records } = await api.get(
         `/teacher/attendance?standard=${encodeURIComponent(attStandard)}&date=${attDate}`
       );
-
-      // Pre-fill status map: default PRESENT, override with saved
       const map = {};
-      students.forEach(s => { map[s.id] = 'PRESENT'; });
       records.forEach(r => { map[r.student.id] = r.status; });
       setAttRecords(map);
+      setAttHistory([]);
     } catch (err) {
       setError(err.message);
     } finally {
       setAttLoading(false);
     }
+  };
+
+  // Mark the current (top-of-stack) student, remembering the previous state for Undo.
+  const markCurrentStudent = (studentId, status) => {
+    setAttHistory(h => [...h, attRecords]);
+    setAttRecords(prev => ({ ...prev, [studentId]: status }));
+  };
+
+  // Bulk-mark every remaining (unmarked) student at once.
+  const markAllRemaining = (status) => {
+    setAttHistory(h => [...h, attRecords]);
+    setAttRecords(prev => {
+      const next = { ...prev };
+      attStudents.forEach(s => { if (!(s.id in next)) next[s.id] = status; });
+      return next;
+    });
+  };
+
+  // Undo the last marking action (single or bulk), restoring the previous snapshot.
+  const undoLastAttendance = () => {
+    setAttHistory(h => {
+      if (h.length === 0) return h;
+      const prevSnapshot = h[h.length - 1];
+      setAttRecords(prevSnapshot);
+      return h.slice(0, -1);
+    });
+  };
+
+  // Pull a student back out of the "done" summary so it can be corrected —
+  // this doesn't go through the undo stack, it's a direct edit.
+  const requeueStudent = (studentId) => {
+    setAttRecords(prev => {
+      const next = { ...prev };
+      delete next[studentId];
+      return next;
+    });
   };
 
   const saveAttendance = async () => {
@@ -248,6 +308,33 @@ export default function TeacherDashboard() {
     <DashboardShell brandLabel="Teacher" navItems={NAV_ITEMS} activeTab={activeTab} onTabChange={setActiveTab}>
       <ErrorBanner message={error} />
       <SuccessBanner message={success} />
+
+      {/* Teacher's own daily attendance check-in — always visible */}
+      {selfAtt && (
+        <div style={{
+          display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: 10,
+          padding: '12px 18px', borderRadius: 12, marginBottom: 20,
+          background: selfAtt.checkedIn ? '#d1fae5' : '#fff3cd',
+          border: `1px solid ${selfAtt.checkedIn ? '#005338' : '#7a5b00'}`,
+        }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 10 }}>
+            <span className="material-symbols-outlined" style={{ fontSize: 20, color: selfAtt.checkedIn ? '#005338' : '#7a5b00' }}>
+              {selfAtt.checkedIn ? 'check_circle' : 'schedule'}
+            </span>
+            <span style={{ fontSize: 13.5, fontWeight: 700, color: selfAtt.checkedIn ? '#005338' : '#7a5b00' }}>
+              {selfAtt.checkedIn
+                ? `You marked yourself present today at ${new Date(selfAtt.checkedInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}.`
+                : "You haven't marked your own attendance for today yet."}
+            </span>
+          </div>
+          {!selfAtt.checkedIn && (
+            <button onClick={handleSelfCheckIn} disabled={selfAttBusy}
+              style={{ ...smallBtn, background: '#7a5b00', color: '#fff', padding: '8px 16px' }}>
+              {selfAttBusy ? 'Marking…' : "Mark Today's Attendance"}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* ── Overview ────────────────────────── */}
       {activeTab === 'overview' && (
@@ -529,83 +616,106 @@ export default function TeacherDashboard() {
           </Card>
 
           {/* Student list */}
-          {attStudents.length > 0 && (
-            <>
-              <Card>
-                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16 }}>
-                  <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0b1c30' }}>
-                    Class {attStandard} — {new Date(attDate).toLocaleDateString()} ({attStudents.length} students)
-                  </h2>
-                  <div style={{ display: 'flex', gap: 8 }}>
-                    <button onClick={() => { const m = {}; attStudents.forEach(s => { m[s.id] = 'PRESENT'; }); setAttRecords(m); }}
-                      style={{ ...smallBtn, background: '#d1fae5', color: '#005338' }}>All Present</button>
-                    <button onClick={() => { const m = {}; attStudents.forEach(s => { m[s.id] = 'ABSENT'; }); setAttRecords(m); }}
-                      style={{ ...smallBtn, background: '#ffdad6', color: '#93000a' }}>All Absent</button>
-                  </div>
-                </div>
+          {attStudents.length > 0 && (() => {
+            const queue = attStudents.filter(s => !(s.id in attRecords));
+            const current = queue[0];
+            const done = attStudents.length - queue.length;
 
-                <div style={{ display: 'grid', gap: 8 }}>
-                  {attStudents.map(student => {
-                    const status = attRecords[student.id] || 'PRESENT';
-                    const [tc, bg] = statusColor[status] || ['#464555', '#e5eeff'];
-                    return (
-                      <div key={student.id} style={{
-                        display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                        border: '1px solid #e5eeff', borderRadius: 10, padding: '12px 16px',
-                        background: status === 'ABSENT' ? '#fffafa' : status === 'LATE' ? '#fffef5' : '#f9fffe',
-                        flexWrap: 'wrap', gap: 10,
-                      }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                          <div style={{ width: 36, height: 36, borderRadius: '50%', background: '#e2dfff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 14, color: '#3525cd' }}>
-                            {student.rollNo || '?'}
-                          </div>
-                          <div>
-                            <p style={{ margin: 0, fontWeight: 700, fontSize: 14, color: '#0b1c30' }}>{student.name}</p>
-                            <p style={{ margin: 0, fontSize: 11, color: '#777587' }}>{student.email}</p>
-                          </div>
-                        </div>
-                        <div style={{ display: 'flex', gap: 6 }}>
-                          {['PRESENT', 'LATE', 'ABSENT'].map(s => (
-                            <button
-                              key={s}
-                              onClick={() => setAttRecords(prev => ({ ...prev, [student.id]: s }))}
-                              style={{
-                                ...smallBtn,
-                                background: status === s ? (s === 'PRESENT' ? '#005338' : s === 'ABSENT' ? '#ba1a1a' : '#7a5b00') : '#f0f2fb',
-                                color: status === s ? '#fff' : '#464555',
-                                padding: '6px 12px',
-                              }}
-                            >
+            return (
+              <>
+                <Card>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 16, flexWrap: 'wrap', gap: 10 }}>
+                    <h2 style={{ margin: 0, fontSize: 16, fontWeight: 700, color: '#0b1c30' }}>
+                      Class {attStandard} — {new Date(attDate).toLocaleDateString()} · {done}/{attStudents.length} marked
+                    </h2>
+                    <div style={{ display: 'flex', gap: 8 }}>
+                      <button onClick={() => markAllRemaining('PRESENT')} disabled={queue.length === 0}
+                        style={{ ...smallBtn, background: '#d1fae5', color: '#005338', opacity: queue.length === 0 ? 0.5 : 1 }}>Mark Rest Present</button>
+                      <button onClick={() => markAllRemaining('ABSENT')} disabled={queue.length === 0}
+                        style={{ ...smallBtn, background: '#ffdad6', color: '#93000a', opacity: queue.length === 0 ? 0.5 : 1 }}>Mark Rest Absent</button>
+                      <button onClick={undoLastAttendance} disabled={attHistory.length === 0}
+                        style={{ ...smallBtn, background: '#f0f2fb', color: '#3525cd', opacity: attHistory.length === 0 ? 0.5 : 1, display: 'flex', alignItems: 'center', gap: 4 }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 15 }}>undo</span> Undo
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Progress bar */}
+                  <div style={{ height: 6, borderRadius: 999, background: '#eef0f6', marginBottom: 20, overflow: 'hidden' }}>
+                    <div style={{ height: '100%', width: `${(done / attStudents.length) * 100}%`, background: '#3525cd', transition: 'width 0.2s' }} />
+                  </div>
+
+                  {current ? (
+                    // ── One-at-a-time stack card ──
+                    <div style={{
+                      border: '1px solid #e5eeff', borderRadius: 14, padding: '28px 24px',
+                      display: 'flex', flexDirection: 'column', alignItems: 'center', gap: 16,
+                      background: '#f9fafe',
+                    }}>
+                      <div style={{ width: 64, height: 64, borderRadius: '50%', background: '#e2dfff', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 800, fontSize: 22, color: '#3525cd' }}>
+                        {current.rollNo || '?'}
+                      </div>
+                      <div style={{ textAlign: 'center' }}>
+                        <p style={{ margin: 0, fontWeight: 800, fontSize: 18, color: '#0b1c30' }}>{current.name}</p>
+                        <p style={{ margin: '2px 0 0 0', fontSize: 12.5, color: '#777587' }}>{current.email}</p>
+                        {current.rollNo && <p style={{ margin: '2px 0 0 0', fontSize: 12, color: '#3525cd', fontWeight: 700 }}>Roll No {current.rollNo}</p>}
+                      </div>
+                      <div style={{ display: 'flex', gap: 10, marginTop: 4 }}>
+                        {['PRESENT', 'LATE', 'ABSENT'].map(s => {
+                          const bgColor = s === 'PRESENT' ? '#005338' : s === 'ABSENT' ? '#ba1a1a' : '#7a5b00';
+                          return (
+                            <button key={s} onClick={() => markCurrentStudent(current.id, s)}
+                              style={{ ...smallBtn, background: bgColor, color: '#fff', padding: '10px 20px', fontSize: 13 }}>
                               {s}
                             </button>
-                          ))}
-                        </div>
+                          );
+                        })}
                       </div>
-                    );
-                  })}
-                </div>
+                      <p style={{ margin: 0, fontSize: 11.5, color: '#9a98ab' }}>{queue.length} student{queue.length === 1 ? '' : 's'} left in this class</p>
+                    </div>
+                  ) : (
+                    // ── Everyone marked: 3-column summary, click a name to re-open it ──
+                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: 14 }}>
+                      {['PRESENT', 'ABSENT', 'LATE'].map(section => {
+                        const [tc, bg] = statusColor[section];
+                        const list = attStudents.filter(s => attRecords[s.id] === section);
+                        return (
+                          <div key={section} style={{ border: `1px solid ${bg}`, borderRadius: 12, padding: 14, background: bg + '55' }}>
+                            <h4 style={{ margin: '0 0 10px 0', fontSize: 12.5, fontWeight: 800, color: tc, textTransform: 'uppercase', letterSpacing: '0.04em' }}>
+                              {section} ({list.length})
+                            </h4>
+                            {list.length === 0 ? (
+                              <p style={{ margin: 0, fontSize: 12, color: '#9a98ab' }}>None</p>
+                            ) : (
+                              <div style={{ display: 'grid', gap: 6 }}>
+                                {list.map(s => (
+                                  <button key={s.id} onClick={() => requeueStudent(s.id)} title="Click to correct"
+                                    style={{
+                                      display: 'flex', justifyContent: 'space-between', alignItems: 'center',
+                                      background: '#fff', border: '1px solid #e5eeff', borderRadius: 8,
+                                      padding: '6px 10px', cursor: 'pointer', textAlign: 'left',
+                                    }}>
+                                    <span style={{ fontSize: 12.5, fontWeight: 600, color: '#0b1c30' }}>{s.name}</span>
+                                    <span style={{ fontSize: 11, color: '#777587' }}>#{s.rollNo || '—'}</span>
+                                  </button>
+                                ))}
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                </Card>
 
-                {/* Summary row */}
-                <div style={{ marginTop: 16, padding: '12px 16px', background: '#f8f9ff', borderRadius: 8, display: 'flex', gap: 20, flexWrap: 'wrap' }}>
-                  {['PRESENT', 'LATE', 'ABSENT'].map(s => {
-                    const count = Object.values(attRecords).filter(v => v === s).length;
-                    const [tc, bg] = statusColor[s];
-                    return (
-                      <span key={s} style={{ fontSize: 13, fontWeight: 700 }}>
-                        <span style={{ color: tc }}>{s}: {count}</span>
-                      </span>
-                    );
-                  })}
+                <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
+                  <PrimaryButton onClick={saveAttendance} disabled={attSaving || done === 0}>
+                    {attSaving ? 'Saving…' : `Save Attendance (${done}/${attStudents.length})`}
+                  </PrimaryButton>
                 </div>
-              </Card>
-
-              <div style={{ marginTop: 16, display: 'flex', justifyContent: 'flex-end' }}>
-                <PrimaryButton onClick={saveAttendance} disabled={attSaving}>
-                  {attSaving ? 'Saving…' : 'Save Attendance'}
-                </PrimaryButton>
-              </div>
-            </>
-          )}
+              </>
+            );
+          })()}
 
           {attStudents.length === 0 && !attLoading && attStandard && (
             <EmptyState icon="fact_check" message={`No students found in class "${attStandard}". Check the standard name or add students via School Admin.`} />

@@ -24,14 +24,15 @@ export const getStats = async (req, res) => {
 export const getUsers = async (req, res) => {
   try {
     const schoolId = req.user.schoolId;
-    const { role } = req.query;
+    const { role, standard } = req.query;
 
     const users = await prisma.user.findMany({
       where: {
         schoolId,
         role: role ? role : { in: ['TEACHER', 'STUDENT'] },
+        ...(standard && { standard }),
       },
-      orderBy: { createdAt: 'desc' },
+      orderBy: role === 'STUDENT' ? [{ standard: 'asc' }, { rollNo: 'asc' }] : { createdAt: 'desc' },
       select: { id: true, name: true, email: true, role: true, rollNo: true, standard: true, createdAt: true },
     });
 
@@ -392,5 +393,41 @@ export const getAttendanceOverview = async (req, res) => {
   } catch (error) {
     console.error('getAttendanceOverview error:', error);
     return res.status(500).json({ message: 'Failed to load attendance overview.' });
+  }
+};
+
+// GET /api/admin/teacher-attendance?date=2024-06-26
+// Shows every teacher in the school and whether/when they checked themselves
+// in for the given date (defaults to today). Naturally "resets" each day since
+// it's just querying that day's TeacherAttendance rows — no explicit reset needed.
+export const getTeacherAttendance = async (req, res) => {
+  try {
+    const schoolId = req.user.schoolId;
+    const { date } = req.query;
+
+    const day = date ? new Date(date) : new Date();
+    day.setUTCHours(0, 0, 0, 0);
+
+    const teachers = await prisma.user.findMany({
+      where: { schoolId, role: 'TEACHER' },
+      select: { id: true, name: true, email: true },
+      orderBy: { name: 'asc' },
+    });
+
+    const checkIns = await prisma.teacherAttendance.findMany({
+      where: { schoolId, date: day },
+    });
+    const checkInByTeacher = new Map(checkIns.map((c) => [c.teacherId, c.checkedInAt]));
+
+    const teacherAttendance = teachers.map((t) => ({
+      teacher: t,
+      present: checkInByTeacher.has(t.id),
+      checkedInAt: checkInByTeacher.get(t.id) || null,
+    }));
+
+    return res.json({ date: day, teacherAttendance });
+  } catch (error) {
+    console.error('getTeacherAttendance error:', error);
+    return res.status(500).json({ message: 'Failed to load teacher attendance.' });
   }
 };

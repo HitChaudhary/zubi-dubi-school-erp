@@ -27,6 +27,7 @@ export default function AdminDashboard() {
   const [stats,       setStats]       = useState(null);
   const [users,       setUsers]       = useState([]);
   const [userFilter,  setUserFilter]  = useState('TEACHER');
+  const [userStandardFilter, setUserStandardFilter] = useState(''); // class filter, STUDENT view only loads on demand
   const [meetings,    setMeetings]    = useState([]);
   const [assignments, setAssignments] = useState([]);
   const [school,      setSchool]      = useState(null);
@@ -56,6 +57,8 @@ export default function AdminDashboard() {
   const [attDate,     setAttDate]       = useState(TODAY);
   const [attRecords,  setAttRecords]    = useState([]);
   const [attLoading,  setAttLoading]    = useState(false);
+  const [teacherAtt,        setTeacherAtt]        = useState([]);
+  const [teacherAttLoading, setTeacherAttLoading] = useState(false);
 
   const flash = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000); };
 
@@ -63,7 +66,15 @@ export default function AdminDashboard() {
     setLoading(true); setError('');
     try {
       if (tab === 'overview')    setStats(await api.get('/admin/stats'));
-      if (tab === 'users')       setUsers((await api.get(`/admin/users?role=${filter}`)).users);
+      if (tab === 'users') {
+        if (filter === 'STUDENT') {
+          // Class-wise lazy load: students are only fetched when the admin
+          // explicitly loads a class (via loadStudentsByClass), not here.
+          setUsers([]);
+        } else {
+          setUsers((await api.get(`/admin/users?role=${filter}`)).users);
+        }
+      }
       if (tab === 'meetings')    setMeetings((await api.get('/admin/meetings')).meetings);
       if (tab === 'assignments') setAssignments((await api.get('/admin/assignments')).assignments);
       if (tab === 'settings') {
@@ -77,6 +88,17 @@ export default function AdminDashboard() {
 
   useEffect(() => { load(activeTab, userFilter); }, [activeTab, userFilter, load]);
 
+  // Fetch students for one class, only when the admin explicitly asks.
+  const loadStudentsByClass = async () => {
+    if (!userStandardFilter) return;
+    setLoading(true); setError('');
+    try {
+      const { users: list } = await api.get(`/admin/users?role=STUDENT&standard=${encodeURIComponent(userStandardFilter)}`);
+      setUsers(list);
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
+  };
+
   // ── Attendance oversight ─────────────────────────────────
   const loadAttendance = async () => {
     setAttLoading(true); setError('');
@@ -87,6 +109,28 @@ export default function AdminDashboard() {
       setAttRecords(records);
     } catch (err) { setError(err.message); }
     finally { setAttLoading(false); }
+  };
+
+  // Which teachers checked themselves in for a given date — resets naturally
+  // each day since it's just querying that day's rows.
+  const loadTeacherAttendance = async () => {
+    setTeacherAttLoading(true); setError('');
+    try {
+      const { teacherAttendance } = await api.get(`/admin/teacher-attendance?date=${attDate}`);
+      setTeacherAtt(teacherAttendance);
+    } catch (err) { setError(err.message); }
+    finally { setTeacherAttLoading(false); }
+  };
+
+  // Refresh whatever the users tab is currently showing. For STUDENT view this
+  // re-runs the class-scoped fetch (if a class is selected) instead of the
+  // generic load(), which would otherwise reset the list back to empty.
+  const refreshUsers = () => {
+    if (userFilter === 'STUDENT') {
+      if (userStandardFilter) loadStudentsByClass();
+    } else {
+      load('users', userFilter);
+    }
   };
 
   // ── Users ────────────────────────────────────────────────
@@ -104,14 +148,14 @@ export default function AdminDashboard() {
         flash('User updated.');
       }
       setUserModal(null);
-      load('users', userFilter);
+      refreshUsers();
     } catch (err) { setError(err.message); }
     finally { setSubmitting(false); }
   };
 
   const handleDeleteUser = async (id) => {
     if (!confirm('Remove this user from your school?')) return;
-    try { await api.del(`/admin/users/${id}`); flash('User removed.'); load('users', userFilter); }
+    try { await api.del(`/admin/users/${id}`); flash('User removed.'); refreshUsers(); }
     catch (err) { setError(err.message); }
   };
 
@@ -237,8 +281,29 @@ export default function AdminDashboard() {
             </PrimaryButton>
           </div>
 
+          {/* Class-wise filter — students only load once a class is picked, so we
+              never pull the whole school's student roster into memory at once. */}
+          {userFilter === 'STUDENT' && (
+            <Card style={{ marginBottom: 20 }}>
+              <div style={{ display: 'flex', gap: 12, flexWrap: 'wrap', alignItems: 'flex-end' }}>
+                <div style={{ flex: 1, minWidth: 160 }}>
+                  <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#464555', marginBottom: 6 }}>Class / Standard *</label>
+                  <input style={inputStyle} placeholder="e.g. 10A" value={userStandardFilter}
+                    onChange={(e) => setUserStandardFilter(e.target.value)} />
+                </div>
+                <PrimaryButton onClick={loadStudentsByClass} disabled={!userStandardFilter || loading}>
+                  {loading ? 'Loading…' : 'Load Class'}
+                </PrimaryButton>
+              </div>
+            </Card>
+          )}
+
           {loading ? <Spinner /> : users.length === 0
-            ? <EmptyState icon="group" message={`No ${userFilter.toLowerCase()}s yet.`} />
+            ? <EmptyState icon="group" message={
+                userFilter === 'STUDENT'
+                  ? (userStandardFilter ? `No students found in class "${userStandardFilter}".` : 'Pick a class above and click "Load Class" to see its students.')
+                  : 'No teachers yet.'
+              } />
             : (
               <Card>
                 <div style={{ overflowX: 'auto' }}>
@@ -389,8 +454,8 @@ export default function AdminDashboard() {
                 <label style={{ display: 'block', fontSize: 12, fontWeight: 600, color: '#464555', marginBottom: 6 }}>Date</label>
                 <input type="date" style={inputStyle} value={attDate} onChange={e => setAttDate(e.target.value)} />
               </div>
-              <PrimaryButton onClick={loadAttendance} disabled={attLoading}>
-                {attLoading ? 'Loading…' : 'View Attendance'}
+              <PrimaryButton onClick={() => { loadAttendance(); loadTeacherAttendance(); }} disabled={attLoading || teacherAttLoading}>
+                {(attLoading || teacherAttLoading) ? 'Loading…' : 'View Attendance'}
               </PrimaryButton>
             </div>
           </Card>
@@ -451,6 +516,52 @@ export default function AdminDashboard() {
                         </tr>
                       );
                     })}
+                  </tbody>
+                </table>
+              </div>
+            </Card>
+          )}
+
+          {/* Teacher self-attendance for the selected date */}
+          <div style={{ marginTop: 28, marginBottom: 14 }}>
+            <h2 style={{ fontSize: 18, color: '#0b1c30', fontWeight: 800, margin: '0 0 4px 0' }}>Teacher Attendance</h2>
+            <p style={{ color: '#777587', margin: 0, fontSize: 13 }}>
+              Who checked themselves in on {new Date(attDate).toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' })}. Resets automatically each day.
+            </p>
+          </div>
+
+          {teacherAttLoading ? <Spinner /> : teacherAtt.length === 0 ? (
+            <EmptyState icon="badge" message="Click 'View Attendance' above to load teacher check-ins for this date." />
+          ) : (
+            <Card>
+              <div style={{ overflowX: 'auto' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', fontSize: 13 }}>
+                  <thead>
+                    <tr style={{ background: '#f8f9ff', textAlign: 'left' }}>
+                      {['Teacher', 'Email', 'Status', 'Checked In At'].map(h => (
+                        <th key={h} style={{ padding: '11px 14px', color: '#777587', fontWeight: 600, fontSize: 11, textTransform: 'uppercase', letterSpacing: '0.05em', borderBottom: '1px solid #e5eeff' }}>{h}</th>
+                      ))}
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {teacherAtt.map((row, i) => (
+                      <tr key={row.teacher.id} style={{ background: i % 2 === 0 ? '#fff' : '#fafbff', borderBottom: '1px solid #f0f4ff' }}>
+                        <td style={{ padding: '11px 14px', fontWeight: 700, color: '#0b1c30' }}>{row.teacher.name}</td>
+                        <td style={{ padding: '11px 14px', color: '#777587' }}>{row.teacher.email}</td>
+                        <td style={{ padding: '11px 14px' }}>
+                          <span style={{
+                            background: row.present ? '#d1fae5' : '#ffdad6',
+                            color: row.present ? '#005338' : '#93000a',
+                            borderRadius: 20, padding: '3px 10px', fontWeight: 700, fontSize: 11,
+                          }}>
+                            {row.present ? 'PRESENT' : 'NOT MARKED'}
+                          </span>
+                        </td>
+                        <td style={{ padding: '11px 14px', color: '#464555' }}>
+                          {row.checkedInAt ? new Date(row.checkedInAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : '—'}
+                        </td>
+                      </tr>
+                    ))}
                   </tbody>
                 </table>
               </div>

@@ -20,8 +20,7 @@ CREATE TABLE IF NOT EXISTS "Attendance" (
   "date"      TIMESTAMP(3) NOT NULL,
   "status"    "AttendanceStatus" NOT NULL DEFAULT 'PRESENT',
   "createdAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
-  CONSTRAINT "Attendance_pkey" PRIMARY KEY ("id")
+  "updatedAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
 -- Unique: one record per student per day

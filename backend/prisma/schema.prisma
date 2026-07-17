@@ -43,6 +43,7 @@ model School {
   meetings      Meeting[]
   assignments   Assignment[]
   attendances   Attendance[]
+  teacherAttendances TeacherAttendance[]
 }
 
 model Subscription {
@@ -78,6 +79,8 @@ model User {
   attendanceRecords  Attendance[] @relation("StudentAttendance")
   // Attendance records marked by this teacher
   markedAttendances  Attendance[] @relation("TeacherAttendance")
+  // This teacher's own daily check-ins
+  selfAttendances    TeacherAttendance[]
 }
 
 model Meeting {
@@ -139,6 +142,22 @@ model Attendance {
   student User   @relation("StudentAttendance", fields: [studentId], references: [id], onDelete: Cascade)
 
   @@unique([studentId, date]) // one record per student per day
+}
+
+// Teacher self-attendance: one check-in per teacher per day, resets daily
+// (i.e. "today's" record is just whatever exists for today's date — there's
+// nothing to explicitly reset, a new day simply has no row yet).
+model TeacherAttendance {
+  id        Int      @id @default(autoincrement())
+  schoolId  Int
+  teacherId Int
+  date      DateTime // the date (stored at midnight UTC), one row per day
+  checkedInAt DateTime @default(now()) // exact time the teacher marked present
+
+  school  School @relation(fields: [schoolId], references: [id], onDelete: Cascade)
+  teacher User   @relation(fields: [teacherId], references: [id], onDelete: Cascade)
+
+  @@unique([teacherId, date])
 }
 
 model RegistrationRequest {

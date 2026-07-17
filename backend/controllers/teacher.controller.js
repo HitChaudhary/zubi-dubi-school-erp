@@ -381,3 +381,39 @@ export const getAttendanceReport = async (req, res) => {
     return res.status(500).json({ message: 'Failed to load report.' });
   }
 };
+
+// ---------- Self attendance (teacher checks themself in) ----------
+
+function todayMidnightUTC() {
+  const d = new Date();
+  d.setUTCHours(0, 0, 0, 0);
+  return d;
+}
+
+// GET /api/teacher/self-attendance/today — has this teacher checked in today?
+export const getMySelfAttendanceToday = async (req, res) => {
+  try {
+    const record = await prisma.teacherAttendance.findUnique({
+      where: { teacherId_date: { teacherId: req.user.userId, date: todayMidnightUTC() } },
+    });
+    return res.json({ checkedIn: !!record, checkedInAt: record?.checkedInAt || null });
+  } catch (error) {
+    console.error('getMySelfAttendanceToday error:', error);
+    return res.status(500).json({ message: 'Failed to load attendance status.' });
+  }
+};
+
+// POST /api/teacher/self-attendance — mark self present for today (idempotent)
+export const markMySelfAttendance = async (req, res) => {
+  try {
+    const record = await prisma.teacherAttendance.upsert({
+      where: { teacherId_date: { teacherId: req.user.userId, date: todayMidnightUTC() } },
+      update: {}, // already checked in today — leave the original time intact
+      create: { teacherId: req.user.userId, schoolId: req.user.schoolId, date: todayMidnightUTC() },
+    });
+    return res.status(201).json({ message: 'Attendance marked.', checkedInAt: record.checkedInAt });
+  } catch (error) {
+    console.error('markMySelfAttendance error:', error);
+    return res.status(500).json({ message: 'Failed to mark attendance.' });
+  }
+};

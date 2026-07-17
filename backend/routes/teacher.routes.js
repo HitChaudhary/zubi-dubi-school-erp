@@ -6,6 +6,7 @@ import {
   getAssignments, createAssignment, deleteAssignment, getSubmissions, gradeSubmission,
   getStudentsByStandard, getAttendance, markAttendance, getAttendanceReport,
   getMyStudents, createStudent,
+  getMySelfAttendanceToday, markMySelfAttendance,
 } from '../controllers/teacher.controller.js';
 
 const router = Router();
@@ -35,5 +36,9 @@ router.get('/attendance/students',  getStudentsByStandard);  // ?standard=10A
 router.get('/attendance',           getAttendance);           // ?standard=10A&date=2024-06-26
 router.post('/attendance',          markAttendance);
 router.get('/attendance/report',    getAttendanceReport);     // ?standard=10A
+
+// Self attendance (teacher's own daily check-in)
+router.get('/self-attendance/today', getMySelfAttendanceToday);
+router.post('/self-attendance',      markMySelfAttendance);
 
 export default router;
