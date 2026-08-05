@@ -6,6 +6,8 @@ import {
 } from '../../components/dashboard/Widgets';
 import { api } from '../../utils/api';
 import { safeHref } from '../../utils/url';
+import ClassFileShare from '../../components/dashboard/ClassFileShare';
+import { getCurrentUser } from '../../utils/auth';
 
 const NAV_ITEMS = [
   { id: 'overview',    icon: 'dashboard',    label: 'Overview'       },
@@ -33,6 +35,7 @@ export default function TeacherDashboard() {
   // Assignment modal
   const [showAssignmentModal, setShowAssignmentModal] = useState(false);
   const [assignmentForm, setAssignmentForm] = useState({ title: '', description: '', fileUrl: '', dueDate: '' });
+  const [assignmentFile, setAssignmentFile] = useState(null); // File object, when teacher uploads directly instead of a URL
   const [gradingAssignment, setGradingAssignment] = useState(null);
   const [submissions, setSubmissions] = useState([]);
   const [submissionsLoading, setSubmissionsLoading] = useState(false);
@@ -60,6 +63,9 @@ export default function TeacherDashboard() {
   // Self attendance (teacher's own daily check-in)
   const [selfAtt, setSelfAtt] = useState(null); // { checkedIn, checkedInAt }
   const [selfAttBusy, setSelfAttBusy] = useState(false);
+
+  const [openFileShareId, setOpenFileShareId] = useState(null); // which meeting's file-share panel is open
+  const currentUser = getCurrentUser();
 
   const flash = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000); };
 
@@ -138,9 +144,20 @@ export default function TeacherDashboard() {
     setSubmitting(true);
     setError('');
     try {
-      await api.post('/teacher/assignments', assignmentForm);
+      if (assignmentFile) {
+        // Direct file upload — sent as multipart/form-data, not a URL.
+        const fd = new FormData();
+        fd.append('title', assignmentForm.title);
+        fd.append('description', assignmentForm.description);
+        if (assignmentForm.dueDate) fd.append('dueDate', assignmentForm.dueDate);
+        fd.append('file', assignmentFile);
+        await api.upload('/teacher/assignments', fd);
+      } else {
+        await api.post('/teacher/assignments', assignmentForm);
+      }
       setShowAssignmentModal(false);
       setAssignmentForm({ title: '', description: '', fileUrl: '', dueDate: '' });
+      setAssignmentFile(null);
       flash('Assignment created.');
       load('assignments');
     } catch (err) {
@@ -391,8 +408,16 @@ export default function TeacherDashboard() {
                       {m.status === 'ONGOING' && (
                         <button onClick={() => updateMeetingStatus(m.id, 'ENDED')} style={{ ...smallBtn, background: '#ffdad6', color: '#93000a' }}>End</button>
                       )}
+                      <button onClick={() => setOpenFileShareId(openFileShareId === m.id ? null : m.id)}
+                        style={{ ...smallBtn, background: openFileShareId === m.id ? '#3525cd' : '#f0f2fb', color: openFileShareId === m.id ? '#fff' : '#464555' }}>
+                        {openFileShareId === m.id ? 'Hide Files' : 'Share Files'}
+                      </button>
                       <button onClick={() => deleteMeeting(m.id)} style={{ ...smallBtn, background: '#f0f2fb', color: '#464555' }}>Delete</button>
                     </div>
+                  </div>
+
+                  <div style={{ marginTop: 14 }}>
+                    <ClassFileShare standard={m.standard} canSend senderLabel={currentUser?.name || 'Teacher'} visible={openFileShareId === m.id} />
                   </div>
                 </Card>
               ))}
@@ -463,11 +488,28 @@ export default function TeacherDashboard() {
             </div>
           )}
 
-          <Modal open={showAssignmentModal} title="New Assignment" onClose={() => setShowAssignmentModal(false)}>
+          <Modal open={showAssignmentModal} title="New Assignment" onClose={() => { setShowAssignmentModal(false); setAssignmentFile(null); }}>
             <form onSubmit={handleCreateAssignment}>
               <FormField label="Title"><input style={inputStyle} required value={assignmentForm.title} onChange={(e) => setAssignmentForm({ ...assignmentForm, title: e.target.value })} /></FormField>
               <FormField label="Description"><textarea style={{ ...inputStyle, minHeight: 80 }} required value={assignmentForm.description} onChange={(e) => setAssignmentForm({ ...assignmentForm, description: e.target.value })} /></FormField>
-              <FormField label="File URL (optional)"><input style={inputStyle} placeholder="https://…" value={assignmentForm.fileUrl} onChange={(e) => setAssignmentForm({ ...assignmentForm, fileUrl: e.target.value })} /></FormField>
+
+              <FormField label="Attach a file (optional, max 10MB)">
+                <input type="file" accept="image/*,application/pdf,.doc,.docx,.ppt,.pptx,.xls,.xlsx,.txt,.zip"
+                  onChange={(e) => setAssignmentFile(e.target.files?.[0] || null)} />
+                {assignmentFile && (
+                  <p style={{ margin: '6px 0 0', fontSize: 12, color: '#3525cd' }}>
+                    Selected: {assignmentFile.name} ({(assignmentFile.size / (1024 * 1024)).toFixed(2)} MB)
+                    <button type="button" onClick={() => setAssignmentFile(null)} style={{ marginLeft: 8, background: 'none', border: 'none', color: '#ba1a1a', cursor: 'pointer', fontSize: 11.5 }}>Remove</button>
+                  </p>
+                )}
+              </FormField>
+
+              {!assignmentFile && (
+                <FormField label="…or a File URL (optional)">
+                  <input style={inputStyle} placeholder="https://…" value={assignmentForm.fileUrl} onChange={(e) => setAssignmentForm({ ...assignmentForm, fileUrl: e.target.value })} />
+                </FormField>
+              )}
+
               <FormField label="Due Date (optional)"><input type="date" style={inputStyle} value={assignmentForm.dueDate} onChange={(e) => setAssignmentForm({ ...assignmentForm, dueDate: e.target.value })} /></FormField>
               <PrimaryButton type="submit" disabled={submitting} style={{ width: '100%', justifyContent: 'center', marginTop: 8 }}>
                 {submitting ? 'Creating…' : 'Create Assignment'}

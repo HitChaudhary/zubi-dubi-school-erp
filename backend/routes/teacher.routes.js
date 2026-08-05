@@ -8,6 +8,7 @@ import {
   getMyStudents, createStudent,
   getMySelfAttendanceToday, markMySelfAttendance,
 } from '../controllers/teacher.controller.js';
+import { uploadAssignmentFile } from '../utils/upload.js';
 
 const router = Router();
 router.use(authenticateJWT, authorizeRoles('TEACHER'));
@@ -22,7 +23,21 @@ router.delete('/meetings/:id',   deleteMeeting);
 
 // Assignments
 router.get('/assignments',                     getAssignments);
-router.post('/assignments',                    createAssignment);
+// Wrap multer so file-too-large / bad-upload errors come back as clean JSON
+// instead of Express's default HTML error page.
+function handleAssignmentUpload(req, res, next) {
+  uploadAssignmentFile(req, res, (err) => {
+    if (err) {
+      const message = err.code === 'LIMIT_FILE_SIZE'
+        ? 'File is larger than the 10MB limit.'
+        : 'Failed to upload file.';
+      return res.status(400).json({ message });
+    }
+    next();
+  });
+}
+
+router.post('/assignments',                    handleAssignmentUpload, createAssignment);
 router.delete('/assignments/:id',              deleteAssignment);
 router.get('/assignments/:id/submissions',     getSubmissions);
 router.put('/submissions/:id/grade',           gradeSubmission);

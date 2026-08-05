@@ -4,7 +4,8 @@ CREATE TABLE IF NOT EXISTS "TeacherAttendance" (
   "schoolId"    INTEGER NOT NULL,
   "teacherId"   INTEGER NOT NULL,
   "date"        TIMESTAMP(3) NOT NULL,
-  "checkedInAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP
+  "checkedInAt" TIMESTAMP(3) NOT NULL DEFAULT CURRENT_TIMESTAMP,
+  CONSTRAINT "TeacherAttendance_pkey" PRIMARY KEY ("id")
 );
 
 -- Unique: one check-in per teacher per day

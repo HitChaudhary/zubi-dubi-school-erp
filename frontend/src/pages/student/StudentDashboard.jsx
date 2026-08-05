@@ -7,6 +7,7 @@ import {
 } from '../../components/dashboard/Widgets';
 import { api } from '../../utils/api';
 import { safeHref } from '../../utils/url';
+import ClassFileShare from '../../components/dashboard/ClassFileShare';
 import { getCurrentUser } from '../../utils/auth';
 
 const NAV_ITEMS = [
@@ -33,6 +34,7 @@ export default function StudentDashboard() {
   const [submittingFor, setSubmittingFor] = useState(null);
   const [fileUrl,       setFileUrl]       = useState('');
   const [submitting,    setSubmitting]    = useState(false);
+  const [openFileShareId, setOpenFileShareId] = useState(null); // which meeting's file-share panel is open
 
   const flash = (msg) => { setSuccess(msg); setTimeout(() => setSuccess(''), 3000); };
 
@@ -149,6 +151,21 @@ export default function StudentDashboard() {
                         <span style={{ fontSize: 12, color: '#777587', fontWeight: 600 }}>Class ended</span>
                       )}
                     </div>
+
+                    <div style={{ marginTop: 10 }}>
+                      <button onClick={() => setOpenFileShareId(openFileShareId === m.id ? null : m.id)}
+                        style={{
+                          background: 'none', border: 'none', cursor: 'pointer', padding: 0,
+                          fontSize: 12, fontWeight: 700, color: '#3525cd', display: 'flex', alignItems: 'center', gap: 4,
+                        }}>
+                        <span className="material-symbols-outlined" style={{ fontSize: 15 }}>folder_shared</span>
+                        {openFileShareId === m.id ? 'Hide shared files' : 'View shared files'}
+                      </button>
+                    </div>
+
+                    <div style={{ marginTop: 10 }}>
+                      <ClassFileShare standard={m.standard} canSend={false} senderLabel={me?.name || 'You'} visible={openFileShareId === m.id} />
+                    </div>
                   </Card>
                 ))}
               </div>
@@ -171,6 +188,13 @@ export default function StudentDashboard() {
                     <div style={{ flex: 1, minWidth: 200 }}>
                       <h3 style={{ margin: '0 0 4px 0', fontSize: 15, fontWeight: 700, color: '#0b1c30' }}>{a.title}</h3>
                       <p style={{ margin: '0 0 8px 0', fontSize: 13, color: '#777587' }}>{a.description}</p>
+                      {a.fileUrl && (
+                        <a href={safeHref(a.fileUrl)} target="_blank" rel="noreferrer"
+                          style={{ display: 'inline-flex', alignItems: 'center', gap: 4, fontSize: 12.5, fontWeight: 700, color: '#3525cd', marginBottom: 8 }}>
+                          <span className="material-symbols-outlined" style={{ fontSize: 15 }}>attach_file</span>
+                          View attached file
+                        </a>
+                      )}
                       <p style={{ margin: 0, fontSize: 12, color: '#464555' }}>
                         By {a.teacher?.name} · Due {a.dueDate ? new Date(a.dueDate).toLocaleDateString() : 'no due date'}
                       </p>

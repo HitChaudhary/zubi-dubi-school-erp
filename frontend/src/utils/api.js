@@ -1,4 +1,4 @@
-const API_BASE = 'http://localhost:5000/api';
+export const API_BASE = 'http://localhost:5000/api';
 
 /**
  * Wraps fetch() with the JWT auth header, JSON handling, and a consistent
@@ -58,4 +58,24 @@ export const api = {
   post: (path, body) => apiRequest(path, { method: 'POST', body }),
   put: (path, body) => apiRequest(path, { method: 'PUT', body }),
   del: (path) => apiRequest(path, { method: 'DELETE' }),
+  // For file uploads: pass a FormData instance. Content-Type is deliberately
+  // left unset so the browser attaches the correct multipart boundary.
+  upload: async (path, formData) => {
+    const headers = {};
+    const token = localStorage.getItem('token');
+    if (token) headers.Authorization = `Bearer ${token}`;
+
+    let response;
+    try {
+      response = await fetch(`${API_BASE}${path}`, { method: 'POST', headers, body: formData });
+    } catch {
+      throw new Error('Could not reach the server. Is the backend running?');
+    }
+
+    let data = null;
+    try { data = await response.json(); } catch { /* ignore */ }
+
+    if (!response.ok) throw new Error(data?.message || `Upload failed (${response.status}).`);
+    return data;
+  },
 };

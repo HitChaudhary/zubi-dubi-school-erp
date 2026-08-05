@@ -131,11 +131,19 @@ export const createAssignment = async (req, res) => {
     if (!title || !description) {
       return res.status(400).json({ message: 'title and description are required.' });
     }
+
+    // Teacher can either upload a file directly (req.file, via multer) or
+    // paste an external link (fileUrl) — an uploaded file always wins if both are given.
+    let resolvedFileUrl = fileUrl ? normalizeUrl(fileUrl) : null;
+    if (req.file) {
+      resolvedFileUrl = `${req.protocol}://${req.get('host')}/uploads/assignments/${req.file.filename}`;
+    }
+
     const assignment = await prisma.assignment.create({
       data: {
         title,
         description,
-        fileUrl: fileUrl ? normalizeUrl(fileUrl) : null,
+        fileUrl: resolvedFileUrl,
         dueDate: dueDate ? new Date(dueDate) : null,
         schoolId: req.user.schoolId,
         teacherId: req.user.userId,
