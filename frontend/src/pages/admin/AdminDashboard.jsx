@@ -9,8 +9,8 @@ import { api } from '../../utils/api';
 const NAV_ITEMS = [
   { id: 'overview',    icon: 'dashboard',   label: 'Overview'        },
   { id: 'users',       icon: 'group',       label: 'Staff & Students'},
-  { id: 'attendance',  icon: 'fact_check',  label: 'Attendance'      },
-  { id: 'meetings',    icon: 'video_call',  label: 'Meetings'        },
+  { id: 'attendance',  icon: 'fact_check',  label: 'Attendances'      },
+  { id: 'meetings',    icon: 'video_call',  label: 'Meetings '        },
   { id: 'assignments', icon: 'assignment',  label: 'Assignments'     },
   { id: 'settings',    icon: 'settings',    label: 'School Settings' },
 ];
