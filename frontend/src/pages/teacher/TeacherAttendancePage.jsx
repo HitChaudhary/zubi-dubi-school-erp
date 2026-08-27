@@ -5,9 +5,9 @@ import MonthlyReport  from '../../components/attendance/MonthlyReport';
 import { api } from '../../utils/api';
 
 const TABS = [
-  { id: 'mark',    label: '✏️ Mark Attendance',  icon: 'fact_check'   },
+  { id: 'mark',    label: '✏️ Mark Attendance',  icon: 'fact-check '   },
   { id: 'daily',   label: '📊 Daily Report',      icon: 'today'        },
-  { id: 'monthly', label: '📅 Monthly Report',    icon: 'calendar_month'},
+  { id: 'monthly', label: '📅 Monthly Report',    icon: 'calendar-month'},
 ];
 
 const STATUS_COLOR = { PRESENT: '#166534', ABSENT: '#dc2626', LATE: '#ca8a04', LEAVE: '#1d4ed8' };
@@ -32,6 +32,8 @@ export default function TeacherAttendancePage() {
       setDailyLoading(false);
     }
   };
+
+
 
   useEffect(() => {
     if (tab === 'daily') loadDaily(dailyDate);
