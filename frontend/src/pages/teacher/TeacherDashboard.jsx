@@ -190,6 +190,7 @@ export default function TeacherDashboard() {
       setError(err.message);
     } finally {
       setSubmissionsLoading(false);
+
     }
   };
 
@@ -200,7 +201,7 @@ export default function TeacherDashboard() {
     } catch (err) { setError(err.message); }
   };
 
-  // ---- Students ----
+  // ---- Students ----//
   const handleCreateStudent = async (e) => {
     e.preventDefault();
     setSubmitting(true);
